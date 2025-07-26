@@ -23,7 +23,7 @@ class _GameScreenState extends State<GameScreen> {
         children: [
           // Game Canvas
           GameWidget(game: game),
-          
+
           // UI Overlay
           Positioned(
             top: 20,
@@ -48,7 +48,8 @@ class _GameScreenState extends State<GameScreen> {
                   // Energy Display
                   Column(
                     children: [
-                      Text('Energy', style: TextStyle(fontWeight: FontWeight.bold)),
+                      Text('Energy',
+                          style: TextStyle(fontWeight: FontWeight.bold)),
                       Container(
                         width: 100,
                         height: 10,
@@ -58,7 +59,7 @@ class _GameScreenState extends State<GameScreen> {
                         ),
                         child: FractionallySizedBox(
                           alignment: Alignment.centerLeft,
-                          widthFactor: game.player?.energy ?? 0.0,
+                          widthFactor: game.player.energy,
                           child: Container(
                             decoration: BoxDecoration(
                               color: Colors.green,
@@ -69,20 +70,21 @@ class _GameScreenState extends State<GameScreen> {
                       ),
                     ],
                   ),
-                  
+
                   // Position Display
                   Column(
                     children: [
-                      Text('Position', style: TextStyle(fontWeight: FontWeight.bold)),
-                      Text('${game.player?.currentTileIndex ?? 0}', 
-                           style: TextStyle(fontSize: 18, color: Colors.blue)),
+                      Text('Position',
+                          style: TextStyle(fontWeight: FontWeight.bold)),
+                      Text('${game.player.currentTileIndex}',
+                          style: TextStyle(fontSize: 18, color: Colors.blue)),
                     ],
                   ),
                 ],
               ),
             ),
           ),
-          
+
           // Game Controls
           Positioned(
             bottom: 20,
@@ -117,10 +119,11 @@ class _GameScreenState extends State<GameScreen> {
                       ),
                     ),
                   ),
-                  
+
                   // Roll Dice Button
                   ElevatedButton.icon(
-                    onPressed: game.canRollDice() ? () => game.rollDice() : null,
+                    onPressed:
+                        game.canRollDice() ? () => game.rollDice() : null,
                     icon: Text('🎲'),
                     label: Text('Roll Dice'),
                     style: ElevatedButton.styleFrom(

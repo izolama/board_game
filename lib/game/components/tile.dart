@@ -1,7 +1,10 @@
 import 'package:flame/components.dart';
 import 'package:flame/effects.dart';
+import 'package:flame/collisions.dart';
 import 'package:flame_audio/flame_audio.dart';
 import 'package:flutter/material.dart';
+import 'package:flutter/rendering.dart';
+import 'dart:ui';
 import '../my_game.dart';
 
 enum TileType {
@@ -19,38 +22,38 @@ class GameTile extends SpriteComponent with HasGameRef<MyGame> {
   bool isVisible = false;
   bool isHighlighted = false;
   Color? highlightColor;
-  
+
   // Visual properties
   static const double tileSize = 40.0;
   late Paint tilePaint;
   late Paint borderPaint;
-  
+
   GameTile({
     required this.tileIndex,
     required this.tileType,
     required Vector2 position,
     required MyGame gameRef,
   }) : super(position: position, size: Vector2.all(tileSize)) {
-    this.gameRef = gameRef;
+    // Remove invalid assignment
   }
-  
+
   @override
   Future<void> onLoad() async {
     super.onLoad();
-    
+
     // Initialize paints
     _initializePaints();
-    
+
     // Load tile sprite from assets
     await _loadTileSprite();
-    
+
     // Add hitbox for collision detection
     add(RectangleHitbox());
-    
+
     // Initially hidden (fog of war)
     opacity = isVisible ? 1.0 : 0.3;
   }
-  
+
   void _initializePaints() {
     tilePaint = Paint()..style = PaintingStyle.fill;
     borderPaint = Paint()
@@ -58,7 +61,7 @@ class GameTile extends SpriteComponent with HasGameRef<MyGame> {
       ..strokeWidth = 2
       ..color = Colors.black54;
   }
-  
+
   Future<void> _loadTileSprite() async {
     // Load sprite from assets based on tile type
     String spritePath = _getTileSpritePath();
@@ -69,7 +72,7 @@ class GameTile extends SpriteComponent with HasGameRef<MyGame> {
       await _createTileSprite();
     }
   }
-  
+
   String _getTileSpritePath() {
     switch (tileType) {
       case TileType.start:
@@ -86,15 +89,15 @@ class GameTile extends SpriteComponent with HasGameRef<MyGame> {
         return 'tiles/tile_normal.png';
     }
   }
-  
+
   Future<void> _createTileSprite() async {
     final recorder = PictureRecorder();
     final canvas = Canvas(recorder);
-    
+
     // Set tile color based on type
     Color tileColor = _getTileColor();
     tilePaint.color = tileColor;
-    
+
     // Draw tile background
     canvas.drawRRect(
       RRect.fromRectAndRadius(
@@ -103,7 +106,7 @@ class GameTile extends SpriteComponent with HasGameRef<MyGame> {
       ),
       tilePaint,
     );
-    
+
     // Draw tile border
     canvas.drawRRect(
       RRect.fromRectAndRadius(
@@ -112,21 +115,21 @@ class GameTile extends SpriteComponent with HasGameRef<MyGame> {
       ),
       borderPaint,
     );
-    
+
     // Draw tile icon/symbol
     _drawTileIcon(canvas);
-    
+
     final picture = recorder.endRecording();
     final image = await picture.toImage(tileSize.toInt(), tileSize.toInt());
     sprite = Sprite(image);
   }
-  
+
   Color _getTileColor() {
     switch (tileType) {
       case TileType.start:
         return Color(0xFF4CAF50); // Green
       case TileType.finish:
-        return Color(0xFFFFD700); // Gold
+        return Color(0xFFFFD700); // Amber
       case TileType.obstacle:
         return Color(0xFFF44336); // Red
       case TileType.bonus:
@@ -137,18 +140,18 @@ class GameTile extends SpriteComponent with HasGameRef<MyGame> {
         return Color(0xFF8FBC8F); // Light green
     }
   }
-  
+
   void _drawTileIcon(Canvas canvas) {
     final iconPaint = Paint()
       ..color = Colors.white
       ..style = PaintingStyle.fill;
-    
+
     final textPainter = TextPainter(
       textDirection: TextDirection.ltr,
     );
-    
+
     String icon = _getTileIcon();
-    
+
     textPainter.text = TextSpan(
       text: icon,
       style: TextStyle(
@@ -164,18 +167,18 @@ class GameTile extends SpriteComponent with HasGameRef<MyGame> {
         ],
       ),
     );
-    
+
     textPainter.layout();
-    
+
     // Center the icon
     final offset = Offset(
       (tileSize - textPainter.width) / 2,
       (tileSize - textPainter.height) / 2,
     );
-    
+
     textPainter.paint(canvas, offset);
   }
-  
+
   String _getTileIcon() {
     switch (tileType) {
       case TileType.start:
@@ -192,10 +195,10 @@ class GameTile extends SpriteComponent with HasGameRef<MyGame> {
         return '🌿';
     }
   }
-  
+
   void setVisible(bool visible) {
     isVisible = visible;
-    
+
     if (visible) {
       // Fade in effect
       add(
@@ -213,11 +216,11 @@ class GameTile extends SpriteComponent with HasGameRef<MyGame> {
       );
     }
   }
-  
+
   void setHighlight(Color color) {
     isHighlighted = true;
     highlightColor = color;
-    
+
     // Add pulsing highlight effect
     add(
       ColorEffect(
@@ -231,7 +234,7 @@ class GameTile extends SpriteComponent with HasGameRef<MyGame> {
         opacityTo: 0.6,
       ),
     );
-    
+
     // Add scale effect
     add(
       ScaleEffect.by(
@@ -244,28 +247,28 @@ class GameTile extends SpriteComponent with HasGameRef<MyGame> {
       ),
     );
   }
-  
+
   void clearHighlight() {
     isHighlighted = false;
     highlightColor = null;
-    
+
     // Remove all color and scale effects
     children.whereType<ColorEffect>().forEach((effect) {
       effect.removeFromParent();
     });
-    
+
     children.whereType<ScaleEffect>().forEach((effect) {
       effect.removeFromParent();
     });
-    
+
     // Reset scale
     scale = Vector2.all(1.0);
   }
-  
+
   void triggerTileEffect() {
     // Play sound effect
     _playTileSound();
-    
+
     switch (tileType) {
       case TileType.obstacle:
         _triggerObstacleEffect();
@@ -284,7 +287,7 @@ class GameTile extends SpriteComponent with HasGameRef<MyGame> {
         break;
     }
   }
-  
+
   void _playTileSound() {
     String soundPath = _getTileSoundPath();
     try {
@@ -293,7 +296,7 @@ class GameTile extends SpriteComponent with HasGameRef<MyGame> {
       // Ignore audio errors
     }
   }
-  
+
   String _getTileSoundPath() {
     switch (tileType) {
       case TileType.obstacle:
@@ -310,7 +313,7 @@ class GameTile extends SpriteComponent with HasGameRef<MyGame> {
         return 'tile_normal.wav';
     }
   }
-  
+
   void _triggerNormalEffect() {
     // Subtle effect for normal tiles
     add(
@@ -322,7 +325,7 @@ class GameTile extends SpriteComponent with HasGameRef<MyGame> {
       ),
     );
   }
-  
+
   void _triggerObstacleEffect() {
     // Visual feedback for obstacle
     add(
@@ -333,7 +336,7 @@ class GameTile extends SpriteComponent with HasGameRef<MyGame> {
         opacityTo: 0.8,
       ),
     );
-    
+
     // Shake effect
     add(
       MoveEffect.by(
@@ -345,11 +348,11 @@ class GameTile extends SpriteComponent with HasGameRef<MyGame> {
         ),
       ),
     );
-    
+
     // Create obstacle particles
     _createObstacleParticles();
   }
-  
+
   void _triggerBonusEffect() {
     // Visual feedback for bonus
     add(
@@ -360,7 +363,7 @@ class GameTile extends SpriteComponent with HasGameRef<MyGame> {
         opacityTo: 0.7,
       ),
     );
-    
+
     // Bounce effect
     add(
       ScaleEffect.by(
@@ -368,11 +371,11 @@ class GameTile extends SpriteComponent with HasGameRef<MyGame> {
         EffectController(duration: 0.2, reverseDuration: 0.2),
       ),
     );
-    
+
     // Create bonus particles
     _createBonusParticles();
   }
-  
+
   void _triggerBranchEffect() {
     // Visual feedback for branch
     add(
@@ -383,7 +386,7 @@ class GameTile extends SpriteComponent with HasGameRef<MyGame> {
         opacityTo: 0.6,
       ),
     );
-    
+
     // Rotation effect
     add(
       RotateEffect.by(
@@ -392,34 +395,33 @@ class GameTile extends SpriteComponent with HasGameRef<MyGame> {
       ),
     );
   }
-  
+
   void _createObstacleParticles() {
     for (int i = 0; i < 8; i++) {
       final particle = SpriteComponent(
         size: Vector2.all(3),
         position: position + Vector2(tileSize / 2, tileSize / 2),
       );
-      
+
       // Create red particle
       final paint = Paint()..color = Colors.red;
       final recorder = PictureRecorder();
       final canvas = Canvas(recorder);
       canvas.drawCircle(Offset(1.5, 1.5), 1.5, paint);
-      
+
       final picture = recorder.endRecording();
       picture.toImage(3, 3).then((image) {
         particle.sprite = Sprite(image);
       });
-      
+
       gameRef.add(particle);
-      
+
       // Random direction
-      final angle = (i / 8) * 2 * 3.14159;
       final direction = Vector2(
         30 * (0.5 - (i % 2)) * 2,
         30 * (0.5 - (i ~/ 2 % 2)) * 2,
       );
-      
+
       // Animate particle
       particle.add(
         MoveEffect.by(
@@ -428,7 +430,7 @@ class GameTile extends SpriteComponent with HasGameRef<MyGame> {
           onComplete: () => particle.removeFromParent(),
         ),
       );
-      
+
       particle.add(
         OpacityEffect.fadeOut(
           EffectController(duration: 0.6),
@@ -436,33 +438,33 @@ class GameTile extends SpriteComponent with HasGameRef<MyGame> {
       );
     }
   }
-  
+
   void _createBonusParticles() {
     for (int i = 0; i < 6; i++) {
       final particle = SpriteComponent(
         size: Vector2.all(4),
         position: position + Vector2(tileSize / 2, tileSize / 2),
       );
-      
+
       // Create golden particle
       final paint = Paint()..color = Colors.amber;
       final recorder = PictureRecorder();
       final canvas = Canvas(recorder);
       canvas.drawCircle(Offset(2, 2), 2, paint);
-      
+
       final picture = recorder.endRecording();
       picture.toImage(4, 4).then((image) {
         particle.sprite = Sprite(image);
       });
-      
+
       gameRef.add(particle);
-      
+
       // Upward direction with spread
       final direction = Vector2(
         (i - 3) * 10.0,
         -40 - (i * 5),
       );
-      
+
       // Animate particle
       particle.add(
         MoveEffect.by(
@@ -471,13 +473,13 @@ class GameTile extends SpriteComponent with HasGameRef<MyGame> {
           onComplete: () => particle.removeFromParent(),
         ),
       );
-      
+
       particle.add(
         OpacityEffect.fadeOut(
           EffectController(duration: 1.0, startDelay: 0.3),
         ),
       );
-      
+
       // Add sparkle effect
       particle.add(
         ScaleEffect.by(
@@ -491,20 +493,20 @@ class GameTile extends SpriteComponent with HasGameRef<MyGame> {
       );
     }
   }
-  
+
   void reset() {
     isVisible = false;
     isHighlighted = false;
     highlightColor = null;
     opacity = 0.3;
     scale = Vector2.all(1.0);
-    
+
     // Remove all effects
     children.whereType<Effect>().forEach((effect) {
       effect.removeFromParent();
     });
   }
-  
+
   String getTileDescription() {
     switch (tileType) {
       case TileType.start:
@@ -521,11 +523,11 @@ class GameTile extends SpriteComponent with HasGameRef<MyGame> {
         return 'Safe path tile';
     }
   }
-  
+
   @override
   void render(Canvas canvas) {
     super.render(canvas);
-    
+
     // Draw tile index for debugging (only if visible)
     if (isVisible) {
       final textPainter = TextPainter(
@@ -539,7 +541,7 @@ class GameTile extends SpriteComponent with HasGameRef<MyGame> {
         ),
         textDirection: TextDirection.ltr,
       );
-      
+
       textPainter.layout();
       textPainter.paint(canvas, Offset(2, 2));
     }
