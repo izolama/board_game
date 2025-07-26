@@ -237,8 +237,7 @@ class FogOfWar extends Component {
 
     // Remove fog overlay
     tile.children.whereType<ColorEffect>().forEach((effect) {
-      if (effect.color != null &&
-          effect.color == Colors.grey.withOpacity(0.7)) {
+      if (effect.color != null && effect.color == Colors.grey.withOpacity(0.7)) {
         effect.removeFromParent();
       }
     });
@@ -259,9 +258,9 @@ class FogOfWar extends Component {
     exploredTiles.clear();
     fogOpacity.clear();
 
-    // Reveal starting tiles
-    revealTile(0); // Start tile
-    revealTile(1); // First tile ahead
+    // Hanya tile start (index 0) yang terlihat di awal
+    revealTile(0); // Start tile only
+    // Tile lain akan terlihat saat player melewatinya
   }
 
   // Special fog of war abilities

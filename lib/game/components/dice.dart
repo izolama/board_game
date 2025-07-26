@@ -2,6 +2,7 @@ import 'package:flame/components.dart';
 import 'package:flame/effects.dart';
 import 'package:flame/collisions.dart';
 import 'package:flutter/material.dart';
+import 'package:flutter/rendering.dart';
 import 'dart:ui';
 import 'dart:math';
 import '../my_game.dart';
@@ -129,8 +130,8 @@ class Dice extends SpriteComponent
     }
   }
 
-  Future<void> roll() async {
-    if (isRolling) return;
+  Future<int> roll() async {
+    if (isRolling) return currentValue;
 
     isRolling = true;
     rollAnimationTime = 0.0;
@@ -159,40 +160,40 @@ class Dice extends SpriteComponent
 
     // Animate through random values during roll
     for (int i = 0; i < 10; i++) {
-      Future.delayed(Duration(milliseconds: i * 100), () {
-        if (isRolling) {
-          currentValue = random.nextInt(6) + 1;
-          _updateDiceSprite();
-        }
-      });
+      await Future.delayed(Duration(milliseconds: i * 100));
+      if (isRolling) {
+        currentValue = random.nextInt(6) + 1;
+        _updateDiceSprite();
+      }
     }
 
     // Set final value
-    Future.delayed(Duration(milliseconds: (rollDuration * 1000).toInt()), () {
-      currentValue = finalValue;
-      _updateDiceSprite();
-      isRolling = false;
-
-      // Bounce effect when landing
-      add(
-        ScaleEffect.by(
-          Vector2.all(1.1),
-          EffectController(
-            duration: 0.1,
-            reverseDuration: 0.1,
-          ),
-        ),
-      );
-    });
-  }
-
-  void _updateDiceSprite() {
-    _createDiceSprite();
-  }
-
-  void showResult(int value) {
-    currentValue = value;
+    await Future.delayed(Duration(milliseconds: (rollDuration * 1000).toInt()));
+    currentValue = finalValue;
     _updateDiceSprite();
+    isRolling = false;
+
+    // Bounce effect when landing
+    add(
+      ScaleEffect.by(
+        Vector2.all(1.1),
+        EffectController(
+          duration: 0.1,
+          reverseDuration: 0.1,
+        ),
+      ),
+    );
+
+    return finalValue;
+  }
+
+  Future<void> _updateDiceSprite() async {
+    await _createDiceSprite();
+  }
+
+  Future<void> showResult(int value) async {
+    currentValue = value;
+    await _updateDiceSprite();
 
     // Highlight effect
     add(
@@ -209,7 +210,7 @@ class Dice extends SpriteComponent
     );
   }
 
-  void reset() {
+  Future<void> reset() async {
     currentValue = 1;
     isRolling = false;
     rollAnimationTime = 0.0;
@@ -223,7 +224,7 @@ class Dice extends SpriteComponent
     scale = Vector2.all(1.0);
     angle = 0.0;
 
-    _updateDiceSprite();
+    await _updateDiceSprite();
   }
 
   @override
@@ -252,37 +253,22 @@ class Dice extends SpriteComponent
   }
 }
 
-class DiceUI extends Component with HasGameRef<MyGame> {
+class DiceUI extends SpriteComponent with HasGameRef<MyGame> {
   late Dice dice;
   late TextComponent resultText;
-  late RectangleComponent background;
 
   bool isVisible = false;
 
+  DiceUI() : super(size: Vector2(120, 100));
+
   @override
   Future<void> onLoad() async {
-    super.onLoad();
+    // Set posisi untuk UI container
+    position = Vector2(gameRef.size.x - 140, 20);
 
-    // Create background
-    background = RectangleComponent(
-      size: Vector2(120, 100),
-      position: Vector2(gameRef.size.x - 140, 20),
-      paint: Paint()
-        ..color = Colors.white.withOpacity(0.9)
-        ..style = PaintingStyle.fill,
-    );
-
-    background.add(
-      RectangleComponent(
-        size: Vector2(120, 100),
-        paint: Paint()
-          ..color = Colors.black
-          ..style = PaintingStyle.stroke
-          ..strokeWidth = 2,
-      ),
-    );
-
-    add(background);
+    // Set background sprite terlebih dahulu
+    await _createBackgroundSprite();
+    await super.onLoad();
 
     // Create dice
     dice = Dice(position: Vector2(gameRef.size.x - 110, 50));
@@ -303,34 +289,77 @@ class DiceUI extends Component with HasGameRef<MyGame> {
     add(resultText);
 
     // Initially hidden
-    add(OpacityEffect.fadeOut(EffectController(duration: 0.0)));
+    opacity = 0.0;
+  }
+
+  Future<void> _createBackgroundSprite() async {
+    try {
+      final recorder = PictureRecorder();
+      final canvas = Canvas(recorder);
+
+      // Pastikan ukuran valid (minimal 1x1)
+      final imageWidth = size.x.toInt().clamp(1, 1000);
+      final imageHeight = size.y.toInt().clamp(1, 1000);
+
+      // Draw background
+      canvas.drawRRect(
+        RRect.fromRectAndRadius(
+          Rect.fromLTWH(0, 0, imageWidth.toDouble(), imageHeight.toDouble()),
+          Radius.circular(8),
+        ),
+        Paint()
+          ..color = Colors.white.withOpacity(0.9)
+          ..style = PaintingStyle.fill,
+      );
+
+      // Draw border
+      canvas.drawRRect(
+        RRect.fromRectAndRadius(
+          Rect.fromLTWH(0, 0, imageWidth.toDouble(), imageHeight.toDouble()),
+          Radius.circular(8),
+        ),
+        Paint()
+          ..color = Colors.black
+          ..style = PaintingStyle.stroke
+          ..strokeWidth = 2,
+      );
+
+      final picture = recorder.endRecording();
+      final image = await picture.toImage(imageWidth, imageHeight);
+      sprite = Sprite(image);
+    } catch (e) {
+      // Fallback: create simple colored rectangle
+      final recorder = PictureRecorder();
+      final canvas = Canvas(recorder);
+      
+      canvas.drawRect(
+        Rect.fromLTWH(0, 0, size.x, size.y),
+        Paint()..color = Colors.white,
+      );
+      
+      final picture = recorder.endRecording();
+      final image = await picture.toImage(size.x.toInt(), size.y.toInt());
+      sprite = Sprite(image);
+    }
   }
 
   void show() {
     if (!isVisible) {
       isVisible = true;
-      add(
-        OpacityEffect.fadeIn(
-          EffectController(duration: 0.3),
-        ),
-      );
+      opacity = 1.0;
     }
   }
 
   void hide() {
     if (isVisible) {
       isVisible = false;
-      add(
-        OpacityEffect.fadeOut(
-          EffectController(duration: 0.3),
-        ),
-      );
+      opacity = 0.0;
     }
   }
 
   Future<int> rollDice() async {
     show();
-    await dice.roll();
+    final result = await dice.roll();
     resultText.text = 'Roll: ${dice.currentValue}';
 
     // Hide after showing result
@@ -338,11 +367,11 @@ class DiceUI extends Component with HasGameRef<MyGame> {
       hide();
     });
 
-    return dice.currentValue;
+    return result;
   }
 
-  void reset() {
-    dice.reset();
+  Future<void> reset() async {
+    await dice.reset();
     resultText.text = 'Roll: ${dice.currentValue}';
     hide();
   }

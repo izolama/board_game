@@ -115,6 +115,7 @@ class Board extends Component with HasGameRef<MyGame> {
     }
 
     // Add alternative paths based on board layout
+    int row = currentIndex ~/ tilesPerRow;
     int col = currentIndex % tilesPerRow;
 
     // Left branch (if not at left edge)
@@ -154,14 +155,9 @@ class Board extends Component with HasGameRef<MyGame> {
       tile.reset();
     }
 
-    // Hide all tiles except start and first few
-    for (int i = 0; i < tiles.length; i++) {
-      if (i <= 1) {
-        revealTile(i); // Show start and next tile
-      } else {
-        hideTile(i);
-      }
-    }
+    // Hanya tile start (index 0) yang terlihat di awal
+    revealTile(0); // Show start tile only
+    // Tile lain akan terlihat saat player melewatinya
   }
 
   void highlightTile(int index, Color color) {

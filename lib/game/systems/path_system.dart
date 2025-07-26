@@ -6,7 +6,7 @@ import '../my_game.dart';
 import '../components/board.dart';
 import '../components/tile.dart';
 
-class PathSystem extends Component {
+class PathSystem extends PositionComponent {
   // Path selection state
   bool isShowingBranchOptions = false;
   int currentBranchTile = -1;
@@ -60,9 +60,19 @@ class PathSystem extends Component {
     );
 
     // Initially hidden
-    selectionBackground
-        .add(OpacityEffect.fadeOut(EffectController(duration: 0.0)));
-    instructionText.add(OpacityEffect.fadeOut(EffectController(duration: 0.0)));
+    selectionBackground.add(
+      OpacityEffect.fadeOut(EffectController(duration: 0.0)),
+    );
+    // Ganti efek fade pada instructionText dengan manual
+    instructionText.textRenderer = TextPaint(
+      style: (instructionText.textRenderer as TextPaint).style.copyWith(
+        color: (instructionText.textRenderer as TextPaint).style.color?.withOpacity(0.0),
+      ),
+    );
+    
+    // Add as children
+    add(selectionBackground);
+    add(instructionText);
   }
 
   void showBranchingOptions(MyGame gameRef, int branchTileIndex) {
@@ -131,34 +141,17 @@ class PathSystem extends Component {
   }
 
   void _showSelectionUI(MyGame gameRef) {
-    // Add UI components to game
-    gameRef.add(selectionBackground);
-    gameRef.add(instructionText);
-
+    // Add option buttons to game
     for (PathOptionButton button in optionButtons) {
       gameRef.add(button);
     }
 
     // Fade in animation
     selectionBackground.add(
-      OpacityEffect.fadeIn(
-        EffectController(duration: 0.3),
-      ),
+      OpacityEffect.fadeIn(EffectController(duration: 0.3)),
     );
-
-    instructionText.add(
-      OpacityEffect.fadeIn(
-        EffectController(duration: 0.3),
-      ),
-    );
-
-    for (PathOptionButton button in optionButtons) {
-      button.add(
-        OpacityEffect.fadeIn(
-          EffectController(duration: 0.3, startDelay: 0.1),
-        ),
-      );
-    }
+    // Fade in manual untuk instructionText
+    fadeText(instructionText, 0.0, 1.0, Duration(milliseconds: 300));
   }
 
   void _highlightAvailablePaths(MyGame gameRef) {
@@ -208,17 +201,10 @@ class PathSystem extends Component {
   void _hideSelectionUI(MyGame gameRef) {
     // Fade out animation
     selectionBackground.add(
-      OpacityEffect.fadeOut(
-        EffectController(duration: 0.3),
-        onComplete: () => selectionBackground.removeFromParent(),
-      ),
+      OpacityEffect.fadeOut(EffectController(duration: 0.3)),
     );
-
     instructionText.add(
-      OpacityEffect.fadeOut(
-        EffectController(duration: 0.3),
-        onComplete: () => instructionText.removeFromParent(),
-      ),
+      OpacityEffect.fadeOut(EffectController(duration: 0.3)),
     );
 
     for (PathOptionButton button in optionButtons) {
@@ -442,5 +428,19 @@ class PathOptionButton extends RectangleComponent {
           ..strokeWidth = 3,
       );
     }
+  }
+}
+
+Future<void> fadeText(TextComponent text, double from, double to, Duration duration) async {
+  final steps = 20;
+  for (int i = 0; i <= steps; i++) {
+    final t = i / steps;
+    final opacity = from + (to - from) * t;
+    text.textRenderer = TextPaint(
+      style: (text.textRenderer as TextPaint).style.copyWith(
+        color: (text.textRenderer as TextPaint).style.color?.withOpacity(opacity),
+      ),
+    );
+    await Future.delayed(duration ~/ steps);
   }
 }

@@ -3,6 +3,7 @@ import 'package:flame/effects.dart';
 import 'package:flame/collisions.dart';
 import 'package:flame_audio/flame_audio.dart';
 import 'package:flutter/material.dart';
+import 'package:flutter/rendering.dart';
 import 'dart:ui';
 import '../my_game.dart';
 
@@ -39,8 +40,9 @@ class Player extends SpriteComponent with HasGameRef<MyGame> {
     // Load player sprites
     await _loadPlayerSprites();
 
-    // Set initial position
-    position = Vector2(100, 300);
+    // Set initial position ke tile 0 (akan di-set ulang di startGame)
+    currentTileIndex = 0;
+    position = Vector2(50, 100); // Posisi default, akan di-update di startGame
 
     // Add to collision detection
     add(RectangleHitbox());
@@ -157,13 +159,42 @@ class Player extends SpriteComponent with HasGameRef<MyGame> {
   }
 
   void _playFootstepSound() {
-    try {
-      // Alternate between footstep sounds
-      String soundFile =
-          walkFrame % 2 == 0 ? 'footstep_1.wav' : 'footstep_2.wav';
-      FlameAudio.play(soundFile, volume: 0.3);
-    } catch (e) {
-      // Ignore audio errors
+    // Add delay to prevent file access conflicts
+    Future.delayed(Duration(milliseconds: 100), () async {
+      try {
+        // Alternate between footstep sounds
+        String soundFile =
+            walkFrame % 2 == 0 ? 'footstep_1.wav' : 'footstep_2.wav';
+        await _playAudioWithRetry(soundFile, 0.3);
+      } catch (e) {
+        // Ignore audio errors
+        print('Could not play footstep sound: $e');
+      }
+    });
+  }
+
+  Future<void> _playAudioWithRetry(String soundFile, double volume, {int maxRetries = 2}) async {
+    for (int attempt = 0; attempt < maxRetries; attempt++) {
+      try {
+        // Try to use cached audio first
+        await FlameAudio.audioCache.load(soundFile);
+        await FlameAudio.play(soundFile, volume: volume);
+        return; // Success, exit retry loop
+      } catch (e) {
+        if (attempt < maxRetries - 1) {
+          // Wait before retry
+          await Future.delayed(Duration(milliseconds: 50 * (attempt + 1)));
+        } else {
+          // Last attempt failed, try direct play
+          try {
+            await FlameAudio.play(soundFile, volume: volume);
+            return;
+          } catch (finalError) {
+            // Final attempt failed, rethrow
+            rethrow;
+          }
+        }
+      }
     }
   }
 
@@ -211,12 +242,15 @@ class Player extends SpriteComponent with HasGameRef<MyGame> {
   }
 
   void plantSeed() {
-    // Play seed planting sound
-    try {
-      FlameAudio.play('seed_plant.wav', volume: 0.6);
-    } catch (e) {
-      // Ignore audio errors
-    }
+    // Play seed planting sound with delay
+    Future.delayed(Duration(milliseconds: 50), () async {
+      try {
+        await _playAudioWithRetry('seed_plant.wav', 0.6);
+      } catch (e) {
+        // Ignore audio errors
+        print('Could not play seed sound: $e');
+      }
+    });
 
     // Visual feedback for planting seed
     add(
@@ -235,52 +269,59 @@ class Player extends SpriteComponent with HasGameRef<MyGame> {
 
   void _createSeedParticles() {
     for (int i = 0; i < 5; i++) {
-      final particle = SpriteComponent(
-        size: Vector2.all(4),
-        position: position +
-            Vector2(
-              (i - 2) * 8.0,
-              playerSize + 5,
-            ),
-      );
-
-      // Create small green particle
-      final paint = Paint()..color = Colors.lightGreen;
-      final recorder = PictureRecorder();
-      final canvas = Canvas(recorder);
-      canvas.drawCircle(Offset(2, 2), 2, paint);
-
-      final picture = recorder.endRecording();
-      picture.toImage(4, 4).then((image) {
-        particle.sprite = Sprite(image);
-      });
-
-      gameRef.add(particle);
-
-      // Animate particle
-      particle.add(
-        MoveEffect.by(
-          Vector2(0, 20),
-          EffectController(duration: 0.8),
-          onComplete: () => particle.removeFromParent(),
-        ),
-      );
-
-      particle.add(
-        OpacityEffect.fadeOut(
-          EffectController(duration: 0.8),
-        ),
+      _createParticle(
+        position + Vector2((i - 2) * 8.0, playerSize + 5),
+        Colors.lightGreen,
+        Vector2(0, 20),
       );
     }
   }
 
+  void _createParticle(Vector2 pos, Color color, Vector2 direction) async {
+    // Create particle sprite first
+    final paint = Paint()..color = color;
+    final recorder = PictureRecorder();
+    final canvas = Canvas(recorder);
+    canvas.drawCircle(Offset(2, 2), 2, paint);
+    final picture = recorder.endRecording();
+    final image = await picture.toImage(4, 4);
+    final sprite = Sprite(image);
+
+    // Create particle component with sprite
+    final particle = SpriteComponent(
+      sprite: sprite,
+      size: Vector2.all(4),
+      position: pos,
+    );
+
+    gameRef.add(particle);
+
+    // Animate particle
+    particle.add(
+      MoveEffect.by(
+        direction,
+        EffectController(duration: 0.8),
+        onComplete: () => particle.removeFromParent(),
+      ),
+    );
+
+    particle.add(
+      OpacityEffect.fadeOut(
+        EffectController(duration: 0.8),
+      ),
+    );
+  }
+
   void showEnergyGain() {
-    // Play energy gain sound
-    try {
-      FlameAudio.play('energy_gain.wav', volume: 0.5);
-    } catch (e) {
-      // Ignore audio errors
-    }
+    // Play energy gain sound with delay
+    Future.delayed(Duration(milliseconds: 75), () async {
+      try {
+        await _playAudioWithRetry('energy_gain.wav', 0.5);
+      } catch (e) {
+        // Ignore audio errors
+        print('Could not play energy gain sound: $e');
+      }
+    });
 
     // Visual feedback for energy gain
     add(
@@ -297,12 +338,15 @@ class Player extends SpriteComponent with HasGameRef<MyGame> {
   }
 
   void showEnergyFull() {
-    // Play energy full sound
-    try {
-      FlameAudio.play('energy_full.wav', volume: 0.7);
-    } catch (e) {
-      // Ignore audio errors
-    }
+    // Play energy full sound with delay
+    Future.delayed(Duration(milliseconds: 100), () async {
+      try {
+        await _playAudioWithRetry('energy_full.wav', 0.7);
+      } catch (e) {
+        // Ignore audio errors
+        print('Could not play energy full sound: $e');
+      }
+    });
 
     // Visual feedback for full energy
     add(
@@ -401,9 +445,9 @@ class Player extends SpriteComponent with HasGameRef<MyGame> {
 
     // Draw energy bar above player
     if (energy > 0) {
-      const barWidth = playerSize;
-      const barHeight = 4.0;
-      const barY = -10.0;
+      final barWidth = playerSize;
+      final barHeight = 4.0;
+      final barY = -10.0;
 
       // Background bar
       canvas.drawRect(

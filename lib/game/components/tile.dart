@@ -50,8 +50,9 @@ class GameTile extends SpriteComponent with HasGameRef<MyGame> {
     // Add hitbox for collision detection
     add(RectangleHitbox());
 
-    // Initially hidden (fog of war)
-    opacity = isVisible ? 1.0 : 0.3;
+    // Semua tile dimulai dengan fog of war (tidak terlihat)
+    isVisible = false;
+    opacity = 0.3; // Fog of war opacity
   }
 
   void _initializePaints() {
@@ -289,11 +290,40 @@ class GameTile extends SpriteComponent with HasGameRef<MyGame> {
   }
 
   void _playTileSound() {
-    String soundPath = _getTileSoundPath();
-    try {
-      FlameAudio.play(soundPath, volume: 0.5);
-    } catch (e) {
-      // Ignore audio errors
+    // Add delay to prevent file access conflicts
+    Future.delayed(Duration(milliseconds: 125), () async {
+      String soundPath = _getTileSoundPath();
+      try {
+        await _playAudioWithRetry(soundPath, 0.5);
+      } catch (e) {
+        // Ignore audio errors
+        print('Could not play tile sound: $soundPath - $e');
+      }
+    });
+  }
+
+  Future<void> _playAudioWithRetry(String soundFile, double volume, {int maxRetries = 2}) async {
+    for (int attempt = 0; attempt < maxRetries; attempt++) {
+      try {
+        // Try to use cached audio first
+        await FlameAudio.audioCache.load(soundFile);
+        await FlameAudio.play(soundFile, volume: volume);
+        return; // Success, exit retry loop
+      } catch (e) {
+        if (attempt < maxRetries - 1) {
+          // Wait before retry
+          await Future.delayed(Duration(milliseconds: 50 * (attempt + 1)));
+        } else {
+          // Last attempt failed, try direct play
+          try {
+            await FlameAudio.play(soundFile, volume: volume);
+            return;
+          } catch (finalError) {
+            // Final attempt failed, rethrow
+            rethrow;
+          }
+        }
+      }
     }
   }
 
@@ -398,89 +428,67 @@ class GameTile extends SpriteComponent with HasGameRef<MyGame> {
 
   void _createObstacleParticles() {
     for (int i = 0; i < 8; i++) {
-      final particle = SpriteComponent(
-        size: Vector2.all(3),
-        position: position + Vector2(tileSize / 2, tileSize / 2),
-      );
-
-      // Create red particle
-      final paint = Paint()..color = Colors.red;
-      final recorder = PictureRecorder();
-      final canvas = Canvas(recorder);
-      canvas.drawCircle(Offset(1.5, 1.5), 1.5, paint);
-
-      final picture = recorder.endRecording();
-      picture.toImage(3, 3).then((image) {
-        particle.sprite = Sprite(image);
-      });
-
-      gameRef.add(particle);
-
-      // Random direction
-      final direction = Vector2(
-        30 * (0.5 - (i % 2)) * 2,
-        30 * (0.5 - (i ~/ 2 % 2)) * 2,
-      );
-
-      // Animate particle
-      particle.add(
-        MoveEffect.by(
-          direction,
-          EffectController(duration: 0.6),
-          onComplete: () => particle.removeFromParent(),
-        ),
-      );
-
-      particle.add(
-        OpacityEffect.fadeOut(
-          EffectController(duration: 0.6),
-        ),
+      _createParticle(
+        position + Vector2(tileSize / 2, tileSize / 2),
+        Colors.red,
+        Vector2(30 * (0.5 - (i % 2)) * 2, 30 * (0.5 - (i ~/ 2 % 2)) * 2),
       );
     }
   }
 
   void _createBonusParticles() {
     for (int i = 0; i < 6; i++) {
-      final particle = SpriteComponent(
-        size: Vector2.all(4),
-        position: position + Vector2(tileSize / 2, tileSize / 2),
+      _createParticle(
+        position + Vector2(tileSize / 2, tileSize / 2),
+        Colors.amber,
+        Vector2((i - 3) * 10.0, -40 - (i * 5)),
+        isSparkle: true,
       );
+    }
+  }
 
-      // Create golden particle
-      final paint = Paint()..color = Colors.amber;
-      final recorder = PictureRecorder();
-      final canvas = Canvas(recorder);
+  void _createParticle(Vector2 pos, Color color, Vector2 direction, {bool isSparkle = false}) async {
+    // Create particle sprite first
+    final paint = Paint()..color = color;
+    final recorder = PictureRecorder();
+    final canvas = Canvas(recorder);
+    
+    if (isSparkle) {
       canvas.drawCircle(Offset(2, 2), 2, paint);
+    } else {
+      canvas.drawCircle(Offset(1.5, 1.5), 1.5, paint);
+    }
+    
+    final picture = recorder.endRecording();
+    final image = await picture.toImage(isSparkle ? 4 : 3, isSparkle ? 4 : 3);
+    final sprite = Sprite(image);
 
-      final picture = recorder.endRecording();
-      picture.toImage(4, 4).then((image) {
-        particle.sprite = Sprite(image);
-      });
+    // Create particle component with sprite
+    final particle = SpriteComponent(
+      sprite: sprite,
+      size: Vector2.all(isSparkle ? 4 : 3),
+      position: pos,
+    );
 
-      gameRef.add(particle);
+    gameRef.add(particle);
 
-      // Upward direction with spread
-      final direction = Vector2(
-        (i - 3) * 10.0,
-        -40 - (i * 5),
-      );
+    // Animate particle
+    particle.add(
+      MoveEffect.by(
+        direction,
+        EffectController(duration: isSparkle ? 1.0 : 0.6),
+        onComplete: () => particle.removeFromParent(),
+      ),
+    );
 
-      // Animate particle
-      particle.add(
-        MoveEffect.by(
-          direction,
-          EffectController(duration: 1.0),
-          onComplete: () => particle.removeFromParent(),
-        ),
-      );
+    particle.add(
+      OpacityEffect.fadeOut(
+        EffectController(duration: isSparkle ? 1.0 : 0.6, startDelay: isSparkle ? 0.3 : 0.0),
+      ),
+    );
 
-      particle.add(
-        OpacityEffect.fadeOut(
-          EffectController(duration: 1.0, startDelay: 0.3),
-        ),
-      );
-
-      // Add sparkle effect
+    // Add sparkle effect for bonus particles
+    if (isSparkle) {
       particle.add(
         ScaleEffect.by(
           Vector2.all(1.5),
